@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'adobe' => [
+        'client_id' => env('ADOBE_CLIENT_ID'),
+        'client_secret' => env('ADOBE_CLIENT_SECRET'),
+        'organization_id' => env('ADOBE_ORGANIZATION_ID'),
+        'organization_domain' => env('ADOBE_ORGANIZATION_DOMAIN'),
+        'callback_domain' => env('ADOBE_CALLBACK_DOMAIN'),
+    ],
 ];
