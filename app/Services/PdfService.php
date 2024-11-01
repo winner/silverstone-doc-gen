@@ -158,29 +158,26 @@ class PdfService
                 'Content-Type' => 'application/json'
             ])->post($url, [
                 'assetID' => $assetID,
-                'getCharBounds' => true,
+                'getCharBounds' => false,
                 'includeStyling' => false,
                 'elementsToExtract' => ['text', 'tables'],
                 'tableOutputFormat' => 'xlsx',
                 'renditionsToExtract' => ['tables', 'figures'],
                 'includeHeaderFooter' => false,
-                'tagEncapsulatedText' => 'Figure',
-                'notifiers' => [
-                    'type' => 'CALLBACK',
-                    'data' => [
-                        'url' => $this->adobeCallbackDomain . '/api/v1/pdf/callback',
-                        'headers' => [
-                            'x-api-key' => 'dummykey',
-                            'access-token' => 'dummytoken',
-                        ]
-                    ]
-                ]
+//                'notifiers' => [
+//                    'type' => 'CALLBACK',
+//                    'data' => [
+//                        'url' => $this->adobeCallbackDomain . '/api/v1/pdf/callback'
+//                    ]
+//                ]
             ]);
+            info('==========start extract job==========');
+            info($response->body());
+            info('==========end extract job==========');
             if ($response->successful()) {
-
                 return [
                     'success' => true,
-                    'data' => $response->body()
+                    'data' => $response->getHeaders()
                 ];
             }
             return [
@@ -197,13 +194,58 @@ class PdfService
         }
     }
 
-    public function getStatus(string $jobId): array
+    public function ocrPDF(string $assetID): array
     {
         try {
             $tokenResponse = $this->getAccessToken();
             if (!$tokenResponse['success']) return $tokenResponse;
             $token = $tokenResponse['data'];
-            $url = $this->adobeOrgDomain . '/operation/extractpdf'. $jobId . '/status';
+            $url = $this->adobeOrgDomain . '/operation/ocr';
+
+            $response = Http::withHeaders([
+                'X-API-Key' => $this->adobeClientId,
+                'Authorization' => 'Bearer ' . $token,
+                'Content-Type' => 'application/json'
+            ])->post($url, [
+                'assetID' => $assetID,
+                'ocrLang' => 'en-US',
+                'ocrType' => 'searchable_image',
+//                'notifiers' => [
+//                    'type' => 'CALLBACK',
+//                    'data' => [
+//                        'url' => $this->adobeCallbackDomain . '/api/v1/pdf/callback'
+//                    ]
+//                ]
+            ]);
+            info('==========start ocr job==========');
+            info($response->body());
+            info('==========end ocr job==========');
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->getHeaders()
+                ];
+            }
+            return [
+                'success' => false,
+                'error' => $response->body(),
+                'status' => $response->status(),
+            ];
+        }catch (\Exception $e){
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'status' => $e->getCode(),
+            ];
+        }
+    }
+    public function getExtractStatus(string $jobId): array
+    {
+        try {
+            $tokenResponse = $this->getAccessToken();
+            if (!$tokenResponse['success']) return $tokenResponse;
+            $token = $tokenResponse['data'];
+            $url = $this->adobeOrgDomain . '/operation/extractpdf/'. $jobId . '/status';
 
             $response = Http::withHeaders([
                 'X-API-Key' => $this->adobeClientId,
@@ -220,6 +262,50 @@ class PdfService
                             'status' => $result['status'],
                             'content' => $result['content'],
                             'resource' => $result['resource'],
+                        ]
+                    ];
+                }
+                return [
+                    'success' => false,
+                    'error' => $result['error'],
+                    'status' => $response->getStatusCode(),
+                ];
+            }
+            return [
+                'success' => false,
+                'error' => $response->reason(),
+                'status' => $response->status(),
+            ];
+        }catch (\Exception $e){
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'status' => $e->getCode(),
+            ];
+        }
+    }
+    public function getOcrStatus(string $jobId): array
+    {
+        try {
+            $tokenResponse = $this->getAccessToken();
+            if (!$tokenResponse['success']) return $tokenResponse;
+            $token = $tokenResponse['data'];
+            $url = $this->adobeOrgDomain . '/operation/ocr/'. $jobId . '/status';
+
+            $response = Http::withHeaders([
+                'X-API-Key' => $this->adobeClientId,
+                'Authorization' => 'Bearer ' . $token,
+                'Content-Type' => 'application/json'
+            ])->get($url);
+
+            if ($response->successful()) {
+                $result = $response->json();
+                if($result['status'] === 'done') {
+                    return [
+                        'success' => true,
+                        'data' => [
+                            'status' => $result['status'],
+                            'asset' => $result['asset'],
                         ]
                     ];
                 }

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "bd52412128d14f4b500dddc1f8c318eb",
+    "content-hash": "700d41200eb306dcae54ed6063510c2d",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -6023,6 +6023,61 @@
                 "source": "https://github.com/tijsverkoyen/CssToInlineStyles/tree/v2.2.7"
             },
             "time": "2023-12-08T13:03:43+00:00"
+        },
+        {
+            "name": "veryfi/veryfi-php",
+            "version": "1.0.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/veryfi/veryfi-php.git",
+                "reference": "3ccd83760df1ce25ff18413d3321aabf06c9f275"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/veryfi/veryfi-php/zipball/3ccd83760df1ce25ff18413d3321aabf06c9f275",
+                "reference": "3ccd83760df1ce25ff18413d3321aabf06c9f275",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "php": ">=7.4"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "9.5.18"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "veryfi\\": "src/veryfi/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Sebastian Carmona",
+                    "email": "sebastiancarmona@veryfi.com"
+                },
+                {
+                    "name": "Alejandro Uribe",
+                    "email": "alejandro@veryfi.com"
+                }
+            ],
+            "description": "veryfi sdk for php",
+            "keywords": [
+                "OCR",
+                "data processing",
+                "veryfi"
+            ],
+            "support": {
+                "issues": "https://github.com/veryfi/veryfi-php/issues",
+                "source": "https://github.com/veryfi/veryfi-php/tree/1.0.3"
+            },
+            "time": "2024-01-02T20:06:28+00:00"
         },
         {
             "name": "vlucas/phpdotenv",

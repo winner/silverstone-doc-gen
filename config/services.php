@@ -42,4 +42,11 @@ return [
         'organization_domain' => env('ADOBE_ORGANIZATION_DOMAIN'),
         'callback_domain' => env('ADOBE_CALLBACK_DOMAIN'),
     ],
+
+    'veryfi' => [
+        'client_id' => env('VERYFI_CLIENT_ID'),
+        'client_secret' => env('VERYFI_CLIENT_SECRET'),
+        'username' => env('VERYFI_USERNAME'),
+        'api_key' => env('VERYFI_API_KEY'),
+    ],
 ];

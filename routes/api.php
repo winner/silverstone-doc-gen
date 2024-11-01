@@ -8,5 +8,6 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::post('/v1/pdf', [PDFController::class, 'upload']);
+Route::post('/v1/pdf', [PDFController::class, 'process']);
+//Route::post('/v1/pdf', [PDFController::class, 'upload']);
 Route::post('/v1/pdf/callback', [PDFController::class, 'callback']);
