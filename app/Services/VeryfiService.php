@@ -4,13 +4,15 @@ namespace App\Services;
 
 use App\Models\LineItem;
 use App\Models\Order;
+use App\Models\Product;
 use veryfi\Client;
 
 class VeryfiService
 {
     public function __construct(
         private LineItem $lineItemModel,
-        private Order $orderModel,
+        private Order    $orderModel,
+        private Product  $productModel
     )
     {
     }
@@ -25,14 +27,14 @@ class VeryfiService
 
             $veryfiClient = new Client($client_id, $client_secret, $username, $apiKey);
             $categories = ['Advertising & Marketing', 'Automotive', 'Supplies'];
-            $file = storage_path('app/public/'. $filePath);
+            $file = storage_path('app/public/' . $filePath);
             $returnAssociative = true;
             $deleteAfterProcessing = false;
             $result = json_decode($veryfiClient->process_document($file, $categories, $deleteAfterProcessing), $returnAssociative);
             $orderNumber = $result['invoice_number'];
             file_put_contents(storage_path("app/public/orders/$orderNumber.json"), json_encode($result, JSON_PRETTY_PRINT));
             $order = $this->orderModel->where('order_no', $orderNumber)->first();
-            if(is_null($order)){
+            if (is_null($order)) {
                 $orderParams = [
                     'order_no' => $orderNumber,
                     'total' => $result['total'],
@@ -55,23 +57,29 @@ class VeryfiService
                     'quantity' => $lineItem['quantity'],
                     'total' => $lineItem['total'],
                     'description' => $lineItem['description'],
+                    'filename' => '',
                 ];
-                $keywords = explode(" ", $lineItem['description']);
-                $initName = $keywords[1] . ' ' . $keywords[0] . '.pdf';
-                $firstFromFilePath = storage_path('app/public/line-items/' . $initName);
-                if (file_exists($firstFromFilePath)) {
-                    $lineItemParams['filename'] = $initName;
-                    $order->lineItems()->create($lineItemParams);
-                } else {
-                    $pdfFiles = scandir(storage_path('app/public/line-items/'));
-                    foreach ($pdfFiles as $pdfFile) {
-                        $pdfFileName = basename($pdfFile);
-                        if (strpos($pdfFileName, $keywords[0]) > -1) {
-                            $lineItemParams['filename'] = $pdfFileName;
-                            $order->lineItems()->create($lineItemParams);
-                        };
+                $description = $lineItem['description'];
+                // Define the pattern to extract Model, Code, and Brand
+                $pattern = '/^(?<model>[A-Z0-9-]+)-(?<code>[A-Z0-9]+) (?<brand>[A-Z]+)/';
+
+                // Use preg_match to find matches based on the pattern
+                if (preg_match($pattern, $description, $matches)) {
+                    $model = $matches['model'];
+                    $code = $matches['code'];
+                    $brand = $matches['brand'];
+                    $product = $this->productModel
+                        ->where('code', $code)
+                        ->where('model', 'like', '%' . $model)
+                        ->where('brand', 'like', '%'. $brand . '%')
+                        ->first();
+                    if (!is_null($product)) {
+                        $lineItemParams['filename'] = $product->doc_name . '.pdf';
                     }
+                } else {
+                    echo "No match found.";
                 }
+                $order->lineItems()->create($lineItemParams);
             }
 
             $order->load('lineItems');
@@ -80,7 +88,7 @@ class VeryfiService
                 'success' => true,
                 'data' => $order->toArray()
             ];
-        }catch (\Exception $e){
+        } catch (\Exception $e) {
             return [
                 'success' => false,
                 'error' => $e->getMessage()
