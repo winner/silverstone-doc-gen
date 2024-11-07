@@ -6,6 +6,7 @@ use App\Services\PdfService;
 use App\Services\VeryfiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Webklex\PDFMerger\Facades\PDFMergerFacade as PDFMerger;
 
 class PDFController
 {

@@ -2,15 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\LineItem;
 use App\Models\Order;
 use App\Models\Product;
+use ConvertApi\ConvertApi;
 use veryfi\Client;
 
 class VeryfiService
 {
     public function __construct(
-        private LineItem $lineItemModel,
         private Order    $orderModel,
         private Product  $productModel
     )
@@ -47,7 +46,11 @@ class VeryfiService
             $order->lineItems()->delete();
 
             $lineItems = $result['line_items'];
-
+            $pdfArray = [
+                'existing' => [],
+                'nonFileExisting' => [],
+                'nonNameExisting' => []
+            ];
             for ($i = 0; $i < count($lineItems); $i++) {
                 $lineItem = $lineItems[$i];
                 $lineItemParams = [
@@ -71,27 +74,48 @@ class VeryfiService
                     $product = $this->productModel
                         ->where('code', $code)
                         ->where('model', 'like', '%' . $model)
-                        ->where('brand', 'like', '%'. $brand . '%')
+                        ->where('brand', 'like', '%' . $brand . '%')
                         ->first();
                     if (!is_null($product)) {
                         $lineItemParams['filename'] = $product->doc_name . '.pdf';
+                        $fileFullPath = storage_path('app/public/line-items/' . strtolower($product->brand) . '/' . $lineItemParams['filename']);
+                        if (file_exists($fileFullPath)) {
+                            $pdfArray['existing'][] = $fileFullPath;
+                        } else {
+                            $pdfArray['nonFileExisting'][] = ['brand' => $product->brand, 'filename' => $lineItemParams['filename']];
+                        }
+                    } else {
+                        $pdfArray['nonNameExisting'][] = ['code' => $code, 'model' => $model, 'brand' => $brand];
                     }
-                } else {
-                    echo "No match found.";
                 }
+
                 $order->lineItems()->create($lineItemParams);
             }
 
             $order->load('lineItems');
-
+            if (
+                count($pdfArray['existing']) > 0 ||
+                count($pdfArray['nonFileExisting']) > 0 ||
+                count($pdfArray['nonNameExisting']) > 0
+            ) {
+                ConvertApi::setApiCredentials(config('services.convert_api.secret'));
+                if(count($pdfArray['existing']) > 0) {
+                    $result = ConvertApi::convert('merge', [ 'Files' => $pdfArray['existing'], ], 'pdf');
+                    $result->saveFiles(storage_path('app/public/results/' . $order->brand . '/' . $orderNumber . '.pdf'));
+                }
+            }
             return [
                 'success' => true,
-                'data' => $order->toArray()
+                'data' => [
+                    'mergedSheetsPdf' => storage_path('app/public/results/' . $order->brand . '/' . $orderNumber . '.pdf'),
+                    'nonFileExisting' => $pdfArray['nonFileExisting'],
+                    'nonNameExisting' => $pdfArray['nonNameExisting'],
+                ]
             ];
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getLine() . ' ' . $e->getMessage()
             ];
         }
     }

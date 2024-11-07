@@ -49,4 +49,11 @@ return [
         'username' => env('VERYFI_USERNAME'),
         'api_key' => env('VERYFI_API_KEY'),
     ],
+
+    'convert_api' => [
+        'key' => env('CONVERT_API_KEY'),
+        'secret' => env('CONVERT_API_SECRET'),
+        'token' => env('CONVERT_API_TOKEN'),
+        'domain' => env('CONVERT_API_DOMAIN'),
+    ],
 ];
