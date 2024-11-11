@@ -19,11 +19,12 @@ class VeryfiService
     public function run(string $filePath)
     {
         try {
+            ConvertApi::setApiCredentials(config('services.convert_api.secret'));
+
             $client_id = config('services.veryfi.client_id');
             $client_secret = config('services.veryfi.client_secret');
             $username = config('services.veryfi.username');
             $apiKey = config('services.veryfi.api_key');
-
             $veryfiClient = new Client($client_id, $client_secret, $username, $apiKey);
             $categories = ['Advertising & Marketing', 'Automotive', 'Supplies'];
             $file = storage_path('app/public/' . $filePath);
@@ -51,6 +52,19 @@ class VeryfiService
                 'nonFileExisting' => [],
                 'nonNameExisting' => []
             ];
+
+            $subTitles = $this->getInvoiceSubtitle($result['ocr_text']);
+            foreach ($subTitles as $subTitleKey => $subTitleValue) {
+                $tempFilePath = storage_path('tmp', 'public') . '/' . rand().'.html';
+                file_put_contents($tempFilePath, "<h1>$subTitleKey</h1>");
+                $result = ConvertApi::convert('pdf', [
+                    'File' => $tempFilePath,
+                ], 'html'
+                );
+                $pdfArray['existing'][] = $result->getFile()->getUrl();
+                unlink($tempFilePath);
+            }
+
             for ($i = 0; $i < count($lineItems); $i++) {
                 $lineItem = $lineItems[$i];
                 $lineItemParams = [
@@ -98,7 +112,6 @@ class VeryfiService
                 count($pdfArray['nonFileExisting']) > 0 ||
                 count($pdfArray['nonNameExisting']) > 0
             ) {
-                ConvertApi::setApiCredentials(config('services.convert_api.secret'));
                 if(count($pdfArray['existing']) > 0) {
                     $result = ConvertApi::convert('merge', [ 'Files' => $pdfArray['existing'], ], 'pdf');
                     $result->saveFiles(storage_path('app/public/results/' . $order->brand . '/' . $orderNumber . '.pdf'));
@@ -117,6 +130,37 @@ class VeryfiService
                 'success' => false,
                 'error' => $e->getLine() . ' ' . $e->getMessage()
             ];
+        }
+    }
+
+    public function getInvoiceSubtitle($text) {
+        try {
+            // Split the text into lines
+            $lines = explode("\n", $text);
+            $groupedItems = [];
+            $currentTitle = null;
+
+            foreach ($lines as $line) {
+                // Trim whitespace from each line
+                $line = trim($line);
+
+                // Check if the line matches a title pattern (e.g., alphanumeric with optional hyphens)
+                if (preg_match('/^[A-Z0-9-]+$/', $line)) {
+                    // Set the current title
+                    $currentTitle = $line;
+                    // Initialize the group for this title if it doesn't exist
+                    if (!isset($groupedItems[$currentTitle])) {
+                        $groupedItems[$currentTitle] = [];
+                    }
+                } elseif ($currentTitle) {
+                    // If the line is not a title, add it as a line item under the current title
+                    $groupedItems[$currentTitle][] = $line;
+                }
+            }
+            return $groupedItems;
+        }catch (\Exception $e){
+            echo $e->getLine();
+            throw new \Exception($e->getMessage());
         }
     }
 }
