@@ -53,6 +53,7 @@ class PDFController
     public function process(Request $request)
     {
         try {
+
             if ($request->file('file')) {
                 $filePath = $request->file('file')->storeAs('orders', $request->file('file')->getClientOriginalName(), 'public');
                 $result = $this->veryfiService->run($filePath);

@@ -21,3 +21,4 @@ yarn-error.log
 /.vscode
 /.zed
 storage/response.txt
+storage/products.json
