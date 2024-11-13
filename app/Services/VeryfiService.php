@@ -89,7 +89,6 @@ class VeryfiService
                 unlink($tempFilePath);
 
                 foreach ($lineItemGroup['lineItems'] as $lineItemIndex) {
-                    if(isset($lineItems[$lineItemIndex])) continue;
                     $lineItem = $lineItems[$lineItemIndex];
                     $lineItemParams = [
                         'order_id' => $order->id,
@@ -185,13 +184,13 @@ class VeryfiService
                 <<<EOD
             please extract the line item group title from below string and group the line items. include only index number of line item into line item group and build JSON data and return json data so I can directly parse in my code.
             each line item group is divided into a line Subtotal -------:
-            each line item has quantity and price.
+            Include the line item only which has price.
             expected json format:
             {
               "lineItemGroups": [
                 {
                   "groupTitle": "TITLE-1",
-                  "lineItems": [0, 1, 2]
+                  "lineItems": [0, 1, 2],
                 }
               ]
             }
