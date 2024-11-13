@@ -89,6 +89,7 @@ class VeryfiService
                 unlink($tempFilePath);
 
                 foreach ($lineItemGroup['lineItems'] as $lineItemIndex) {
+                    if(isset($lineItems[$lineItemIndex])) continue;
                     $lineItem = $lineItems[$lineItemIndex];
                     $lineItemParams = [
                         'order_id' => $order->id,
