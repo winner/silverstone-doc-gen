@@ -22,7 +22,7 @@ class ProductController extends Controller
                 }
                 return response()->json($result['error'], 400);
             }
-            return response()->json('Please upload the PDF file.', 400);
+            return response()->json('Please upload the excel file.', 400);
         } catch (\Exception $e) {
             return response()->json($e->getMessage(), 400);
         }

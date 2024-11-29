@@ -56,4 +56,8 @@ return [
         'token' => env('CONVERT_API_TOKEN'),
         'domain' => env('CONVERT_API_DOMAIN'),
     ],
+
+    'pdfinfo' => [
+        'executable_path' => env('PDFINFO_EXE_PATH')
+    ]
 ];

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\v1;
 
+use App\Jobs\ProcessOrder;
 use App\Services\PdfService;
 use App\Services\VeryfiService;
 use Illuminate\Http\JsonResponse;
@@ -11,7 +12,7 @@ use Webklex\PDFMerger\Facades\PDFMergerFacade as PDFMerger;
 class PDFController
 {
     public function __construct(
-        private PDFService $pdfService,
+        private PDFService    $pdfService,
         private VeryfiService $veryfiService,
     )
     {
@@ -53,14 +54,10 @@ class PDFController
     public function process(Request $request)
     {
         try {
-
             if ($request->file('file')) {
                 $filePath = $request->file('file')->storeAs('orders', $request->file('file')->getClientOriginalName(), 'public');
-                $result = $this->veryfiService->run($filePath);
-                if($result['success']) {
-                    return response()->json($result['data']);
-                }
-                return response()->json($result['error'], 400);
+                ProcessOrder::dispatch($filePath);
+                return response()->json('Order file is being processed.');
             }
             return response()->json('Please upload the PDF file.', 400);
         } catch (\Exception $e) {

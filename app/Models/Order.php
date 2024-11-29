@@ -13,4 +13,9 @@ class Order extends Model
     {
         return $this->hasMany(LineItem::class);
     }
+
+    public function lineItemGroups():HasMany
+    {
+        return $this->hasMany(LineItemGroup::class);
+    }
 }

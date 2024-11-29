@@ -10,52 +10,41 @@ use veryfi\Client;
 class VeryfiService
 {
     public function __construct(
-        private Order          $orderModel,
-        private Product        $productModel,
-        private ChatGPTService $chatGPTService
+        private readonly Order          $orderModel,
+        private readonly Product        $productModel,
+        private readonly ChatGPTService $chatGPTService
     )
     {
     }
 
-    public function run(string $filePath)
+    public function run(string $orderFilePath)
     {
         try {
-//            $lineItemGroupsString = <<<EOD
-//                [
-//                    {
-//                      "groupTitle": "P-1",
-//                      "lineItems": [0, 1, 2, 3, 4]
-//                    },
-//                    {
-//                      "groupTitle": "P-2",
-//                      "lineItems": [5]
-//                    },
-//                    {
-//                      "groupTitle": "EWH-1",
-//                      "lineItems": [6, 7, 8, 9]
-//                    },
-//                    {
-//                      "groupTitle": "TMV-1",
-//                      "lineItems": [10]
-//                    }
-//                  ]
-//            EOD;
-//            $lineItemGroupsData = json_decode($lineItemGroupsString, true);
+            /**************************/
+//             Initiated ConvertAPI
             ConvertApi::setApiCredentials(config('services.convert_api.secret'));
 
             $client_id = config('services.veryfi.client_id');
             $client_secret = config('services.veryfi.client_secret');
             $username = config('services.veryfi.username');
             $apiKey = config('services.veryfi.api_key');
+            // Initiated Veryfi client
             $veryfiClient = new Client($client_id, $client_secret, $username, $apiKey);
+
             $categories = ['Advertising & Marketing', 'Automotive', 'Supplies'];
-            $file = storage_path('app/public/' . $filePath);
+            $orderFile = storage_path('app/public/' . $orderFilePath);
+
             $returnAssociative = true;
             $deleteAfterProcessing = false;
-            $processResult = $veryfiClient->process_document($file, $categories, $deleteAfterProcessing);
-//            file_put_contents(storage_path('line-items-3774.json'), $processResult);
-//            $processResult = file_get_contents(storage_path('line-items.json'));
+            $processResult = $veryfiClient->process_document($orderFile, $categories, $deleteAfterProcessing);
+            /**************************/
+//            file_put_contents(storage_path('app/public/order.json'), $processResult);
+            /**************************/
+
             $result = json_decode($processResult, $returnAssociative);
+            /**************************/
+
+//            $result = json_decode(file_get_contents(storage_path('app/public/order.json')), true);
             $orderNumber = $result['invoice_number'];
             $order = $this->orderModel->where('order_no', $orderNumber)->first();
             if (is_null($order)) {
@@ -63,33 +52,37 @@ class VeryfiService
                     'order_no' => $orderNumber,
                     'total' => $result['total'],
                     'subtotal' => $result['subtotal'],
-                    'filename' => basename($filePath),
+                    'filename' => basename($orderFilePath),
                 ];
                 $order = $this->orderModel->create($orderParams);
             }
-
             $order->lineItems()->delete();
-            $lineItems = array_values(array_filter($result['line_items'], fn($item)=>(float) $item['price'] > 0));
-//
-            $lineItemGroups = $this->getLineItemGroup($result['ocr_text']);
 
-            if(!$lineItemGroups['success']) return $lineItemGroups;
-
+            $lineItems = array_values(array_filter($result['line_items'], fn($item) => (float)$item['price'] > 0));
+            $lineItemGroups = $this->getLineItemGroup($order, $result['ocr_text']);
+            if (!$lineItemGroups['success']) return $lineItemGroups;
             $lineItemGroupsData = $lineItemGroups['data']['lineItemGroups'];
             $pdfUrls = [];
+            $sections = [];
             foreach ($lineItemGroupsData as $lineItemGroup) {
+                $section = [];
+                $section['id'] = rand();
+                $section['title'] = $lineItemGroup['groupTitle'];
+                $section['pageNum'] = 1;
                 $lineItemGroupTitle = $lineItemGroup['groupTitle'];
+
                 $tempFilePath = storage_path('tmp', 'public') . '/' . rand() . '.html';
-                file_put_contents($tempFilePath, "<h1>$lineItemGroupTitle</h1>");
+                file_put_contents($tempFilePath, "<h1 style='font-family: \"Courier New\"'>$lineItemGroupTitle</h1>");
                 $result = ConvertApi::convert('pdf', [
                     'File' => $tempFilePath,
                 ], 'html'
                 );
                 $pdfUrls[] = $result->getFile()->getUrl();
                 unlink($tempFilePath);
-
                 foreach ($lineItemGroup['lineItems'] as $lineItemIndex) {
+                    if (!isset($lineItems[$lineItemIndex])) continue;
                     $lineItem = $lineItems[$lineItemIndex];
+                    $children = ['id' => $lineItem['sku'], 'title' => $lineItem['description'], 'pageNum' => 1];
                     $lineItemParams = [
                         'order_id' => $order->id,
                         'sku' => $lineItem['sku'],
@@ -118,52 +111,81 @@ class VeryfiService
                             $fileFullPath = storage_path('app/public/line-items/' . $lineItemParams['filename']);
                             if (file_exists($fileFullPath)) {
                                 $pdfUrls[] = $fileFullPath;
+                                $children['pageLength'] = $this->getPDFPages($fileFullPath);
                             } else {
                                 $text = 'Product info found in database but specification sheet does not found: brand ' . $product->brand . ', filename: ' . $lineItemParams['filename'];
                                 $tempFilePath = storage_path('tmp', 'public') . '/' . rand() . '.html';
-                                file_put_contents($tempFilePath, "<h1>$text</h1>");
+                                file_put_contents($tempFilePath, "<h1 style='font-family: \"Courier New\"'>$text</h1>");
                                 $result = ConvertApi::convert('pdf', [
                                     'File' => $tempFilePath,
                                 ], 'html'
                                 );
                                 $pdfUrls[] = $result->getFile()->getUrl();
+                                $children['pageLength'] = 1;
                             }
                         } else {
-                            $text = 'Product info not found in database: code: ' . $code . ' order no ' . $order->order_no . ', filename: ' . $lineItemParams['filename'];
+                            $text = 'Product info not found in database: code: ' . $code . ' order no: ' . $order->order_no;
                             $tempFilePath = storage_path('tmp', 'public') . '/' . rand() . '.html';
-                            file_put_contents($tempFilePath, "<h1>$text</h1>");
+                            file_put_contents($tempFilePath, "<h1 style='font-family: \"Courier New\"'>$text</h1>");
                             $result = ConvertApi::convert('pdf', [
                                 'File' => $tempFilePath,
                             ], 'html'
                             );
                             $pdfUrls[] = $result->getFile()->getUrl();
+                            $children['pageLength'] = 1;
                         }
-                    }else{
-                        $text = 'Can not extract the product info from this description: '. $lineItem['description'];
+                    } else {
+                        $text = 'Can not extract the product info from this description: ' . $lineItem['description'];
                         $tempFilePath = storage_path('tmp', 'public') . '/' . rand() . '.html';
-                        file_put_contents($tempFilePath, "<h1>$text</h1>");
+                        file_put_contents($tempFilePath, "<h1 style='font-family: \"Courier New\"'>$text</h1>");
                         $result = ConvertApi::convert('pdf', [
                             'File' => $tempFilePath,
                         ], 'html'
                         );
                         $pdfUrls[] = $result->getFile()->getUrl();
+                        $children['pageLength'] = 1;
                     }
 
                     $order->lineItems()->create($lineItemParams);
+                    $section['children'][] = $children;
                 }
+                $sections[] = $section;
+            }
+            $totalPage = 1;
 
+            foreach ($sections as &$section) {
+                $totalPage += 1;
+                $section['pageNum'] = $totalPage;
+
+                foreach ($section['children'] as &$sectionChild) { // Use reference to modify original array
+                    $sectionChild['pageNum'] = $totalPage + 1; // Set pageNum to the current totalPage
+                    $totalPage += $sectionChild['pageLength'];
+                }
             }
 
+            unset($section);
+            unset($sectionChild);
+            $tableOfContentsHtml = storage_path('tmp', 'public') . '/table-of-contents-' . $orderNumber . '-' . rand() . '.html';
+
+            file_put_contents($tableOfContentsHtml, $this->renderBladeTemplate('table-of-contents', ['sections' => $sections]));
+            $result = ConvertApi::convert('pdf',
+                [
+                    'File' => $tableOfContentsHtml,
+                ], 'html'
+            );
+            unlink($tableOfContentsHtml);
+            $tableOfContentsPdf = storage_path('tmp', 'public') . '/table-of-contents-' . $orderNumber . '-' . rand() . '.pdf';
+            $result->getFile()->save($tableOfContentsPdf);
             $order->load('lineItems');
 
             if (count($pdfUrls) > 0) {
-
+                array_unshift($pdfUrls, $tableOfContentsPdf);
                 $result = ConvertApi::convert('merge', ['Files' => $pdfUrls], 'pdf');
-                $result->saveFiles(storage_path('app/public/results/' . $order->brand . '/' . $orderNumber . '.pdf'));
+                $result->saveFiles(storage_path('app/public/results/' . $order->brand . '/' . $orderNumber. '-'. rand() . '.pdf'));
 
                 return [
                     'success' => true,
-                    'data' => storage_path('app/public/results/' . $order->brand . '/' . $orderNumber . '.pdf')
+                    'data' => storage_path('app/public/results/' . $order->brand . '/' . $orderNumber. '-'. rand() . '.pdf')
                 ];
             }
             return [
@@ -177,9 +199,22 @@ class VeryfiService
             ];
         }
     }
-    public function getLineItemGroup(string $ocrText): array
+
+    public function getLineItemGroup(Order $order, string $ocrText): array
     {
         try {
+            $lineItemGroupInstance = $order->lineItemGroups();
+            if ($lineItemGroupInstance->count() > 0) {
+                return [
+                    'success' => true,
+                    'data' => [
+                        'lineItemGroups' => $lineItemGroupInstance
+                            ->get()
+                            ->map(fn($lineItemGroup) => ['groupTitle' => $lineItemGroup->title, 'lineItems' => $lineItemGroup->line_item_indexes])
+                            ->toArray(),
+                    ]
+                ];
+            }
             $messageText =
                 <<<EOD
             please extract the line item group title from below string and group the line items. include only index number of line item into line item group and build JSON data and return json data so I can directly parse in my code.
@@ -222,6 +257,15 @@ class VeryfiService
                 // Check for JSON parsing errors
                 if (json_last_error() === JSON_ERROR_NONE) {
                     // Successfully parsed JSON data
+                    $lineItemGroupValues = array_map(
+                        fn($lineItemGroup) =>
+                            [
+                                'order_id' => $order->id,
+                                'title' => $lineItemGroup['groupTitle'],
+                                'line_item_indexes' => json_encode($lineItemGroup['lineItems']
+                        )
+                    ], $parsedData['lineItemGroups']);
+                    $lineItemGroupInstance->insert($lineItemGroupValues);
                     return ['success' => true, 'data' => $parsedData];
                 } else {
                     return ['success' => false, 'error' => 'Invalid JSON data: ' . json_last_error_msg()];
@@ -233,8 +277,41 @@ class VeryfiService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getLine() . ':' . $e->getMessage()
             ];
         }
     }
+
+    /**
+     * @param array $data
+     * @return string
+     */
+    public function renderBladeTemplate(string $viewName, array $data = []): string
+    {
+        return view($viewName, $data)->render();
+    }
+
+
+    // Make a function for convenience
+    function getPDFPages($document)
+    {
+        $cmd = config('services.pdfinfo.executable_path');  // Windows
+
+        // Parse entire output
+        // Surround with double quotes if file name has spaces
+        exec("$cmd \"$document\"", $output);
+
+        // Iterate through lines
+        $pagecount = 0;
+        foreach ($output as $op) {
+            // Extract the number
+            if (preg_match("/Pages:\s*(\d+)/i", $op, $matches) === 1) {
+                $pagecount = intval($matches[1]);
+                break;
+            }
+        }
+
+        return $pagecount;
+    }
 }
+
